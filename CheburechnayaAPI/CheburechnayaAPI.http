@@ -1,0 +1,6 @@
+@CheburechnayaAPI_HostAddress = http://localhost:5023
+
+GET {{CheburechnayaAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
