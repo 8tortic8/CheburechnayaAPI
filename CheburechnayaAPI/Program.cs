@@ -1,41 +1,30 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using CheburechnayaAPI.Data;
-using Newtonsoft.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers()
-    .AddNewtonsoftJson(options =>
-    {
-        options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
-    });
-
-builder.Services.AddDbContext<DatabaseContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    options.UseSqlServer(connectionString);
-    Console.WriteLine($"Подключено к SQL Server");
-});
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var app = builder.Build();
+builder.Services.AddDbContext<DatabaseContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-app.UseCors("AllowAll"); 
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.MapControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:3000", "https://localhost:3000")
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials()
+                  .SetPreflightMaxAge(TimeSpan.FromSeconds(86400));
+        });
+});
+
+var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
@@ -43,5 +32,35 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-Console.WriteLine("Cheburechnaya API запущен!");
+app.UseCors("AllowReactApp");
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.Headers.Add("Access-Control-Allow-Origin", "http://localhost:3000");
+        context.Response.Headers.Add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+        context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type,Authorization,Accept");
+        context.Response.Headers.Add("Access-Control-Max-Age", "86400");
+        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+        await context.Response.CompleteAsync();
+        return;
+    }
+
+    await next();
+});
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseAuthorization();
+app.MapControllers();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+
 app.Run();

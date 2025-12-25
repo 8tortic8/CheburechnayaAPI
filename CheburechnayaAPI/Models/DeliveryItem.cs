@@ -7,10 +7,11 @@
         public int ProductId { get; set; }
         public decimal Quantity { get; set; }
         public decimal UnitPrice { get; set; }
-        public DateTime? ExpiryDate { get; set; }
-        public string BatchNumber { get; set; }
+        public DateOnly? ExpiryDate { get; set; }
+        public string? BatchNumber { get; set; }
+        public decimal Subtotal { get; private set; }
 
-        public Delivery Delivery { get; set; }
-        public Product Product { get; set; }
+        public Delivery Delivery { get; set; } = null!;
+        public Product Product { get; set; } = null!;
     }
 }

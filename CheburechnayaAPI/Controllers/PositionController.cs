@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using CheburechnayaAPI.Data;
 using CheburechnayaAPI.Models;
+using CheburechnayaAPI.Models.DTOs;
 
 namespace CheburechnayaAPI.Controllers
 {
@@ -16,16 +17,38 @@ namespace CheburechnayaAPI.Controllers
             _context = context;
         }
 
+        // GET: api/positions
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Position>>> GetPositions()
+        public async Task<ActionResult<IEnumerable<PositionDto>>> GetPositions()
         {
-            return await _context.Positions.ToListAsync();
+            var positions = await _context.Positions
+                .Select(p => new PositionDto
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Salary = p.Salary,
+                    EmployeeCount = p.Employees.Count
+                })
+                .OrderBy(p => p.Title)
+                .ToListAsync();
+
+            return Ok(positions);
         }
 
+        // GET: api/positions/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Position>> GetPosition(int id)
+        public async Task<ActionResult<PositionDto>> GetPosition(int id)
         {
-            var position = await _context.Positions.FindAsync(id);
+            var position = await _context.Positions
+                .Where(p => p.Id == id)
+                .Select(p => new PositionDto
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Salary = p.Salary,
+                    EmployeeCount = p.Employees.Count
+                })
+                .FirstOrDefaultAsync();
 
             if (position == null)
             {
@@ -35,13 +58,34 @@ namespace CheburechnayaAPI.Controllers
             return position;
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutPosition(int id, Position position)
+        // POST: api/positions
+        [HttpPost]
+        public async Task<ActionResult<Position>> PostPosition(PositionCreateDto positionDto)
         {
-            if (id != position.Id)
+            var position = new Position
             {
-                return BadRequest();
+                Title = positionDto.Title,
+                Salary = positionDto.Salary
+            };
+
+            _context.Positions.Add(position);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction("GetPosition", new { id = position.Id }, position);
+        }
+
+        // PUT: api/positions/5
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutPosition(int id, PositionCreateDto positionDto)
+        {
+            var position = await _context.Positions.FindAsync(id);
+            if (position == null)
+            {
+                return NotFound();
             }
+
+            position.Title = positionDto.Title;
+            position.Salary = positionDto.Salary;
 
             _context.Entry(position).State = EntityState.Modified;
 
@@ -64,15 +108,7 @@ namespace CheburechnayaAPI.Controllers
             return NoContent();
         }
 
-        [HttpPost]
-        public async Task<ActionResult<Position>> PostPosition(Position position)
-        {
-            _context.Positions.Add(position);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetPosition", new { id = position.Id }, position);
-        }
-
+        // DELETE: api/positions/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePosition(int id)
         {
@@ -80,6 +116,13 @@ namespace CheburechnayaAPI.Controllers
             if (position == null)
             {
                 return NotFound();
+            }
+
+            // Проверяем, нет ли сотрудников на этой должности
+            var hasEmployees = await _context.Employees.AnyAsync(e => e.PositionId == id);
+            if (hasEmployees)
+            {
+                return BadRequest(new { message = "Нельзя удалить должность, на которой есть сотрудники" });
             }
 
             _context.Positions.Remove(position);

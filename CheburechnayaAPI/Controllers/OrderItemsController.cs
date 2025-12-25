@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using CheburechnayaAPI.Data;
 using CheburechnayaAPI.Models;
+using CheburechnayaAPI.Models.DTOs;
 
 namespace CheburechnayaAPI.Controllers
 {
@@ -16,22 +17,46 @@ namespace CheburechnayaAPI.Controllers
             _context = context;
         }
 
+        // GET: api/orderitems
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<OrderItem>>> GetOrderItems()
+        public async Task<ActionResult<IEnumerable<OrderItemDto>>> GetOrderItems()
         {
-            return await _context.OrderItems
+            var orderItems = await _context.OrderItems
                 .Include(oi => oi.Order)
                 .Include(oi => oi.Product)
+                .Select(oi => new OrderItemDto
+                {
+                    Id = oi.Id,
+                    ProductId = oi.ProductId,
+                    ProductName = oi.Product.ProductName,
+                    ProductCategory = oi.Product.Category,
+                    Quantity = oi.Quantity,
+                    UnitPrice = oi.UnitPrice,
+                    Subtotal = oi.Quantity * oi.UnitPrice
+                })
                 .ToListAsync();
+
+            return Ok(orderItems);
         }
 
+        // GET: api/orderitems/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<OrderItem>> GetOrderItem(int id)
+        public async Task<ActionResult<OrderItemDto>> GetOrderItem(int id)
         {
             var orderItem = await _context.OrderItems
-                .Include(oi => oi.Order)
                 .Include(oi => oi.Product)
-                .FirstOrDefaultAsync(oi => oi.Id == id);
+                .Where(oi => oi.Id == id)
+                .Select(oi => new OrderItemDto
+                {
+                    Id = oi.Id,
+                    ProductId = oi.ProductId,
+                    ProductName = oi.Product.ProductName,
+                    ProductCategory = oi.Product.Category,
+                    Quantity = oi.Quantity,
+                    UnitPrice = oi.UnitPrice,
+                    Subtotal = oi.Quantity * oi.UnitPrice
+                })
+                .FirstOrDefaultAsync();
 
             if (orderItem == null)
             {
@@ -41,22 +66,41 @@ namespace CheburechnayaAPI.Controllers
             return orderItem;
         }
 
+        // GET: api/orderitems/order/5
         [HttpGet("order/{orderId}")]
-        public async Task<ActionResult<IEnumerable<OrderItem>>> GetOrderItemsByOrder(int orderId)
+        public async Task<ActionResult<IEnumerable<OrderItemDto>>> GetOrderItemsByOrder(int orderId)
         {
-            return await _context.OrderItems
+            var orderItems = await _context.OrderItems
                 .Include(oi => oi.Product)
                 .Where(oi => oi.OrderId == orderId)
+                .Select(oi => new OrderItemDto
+                {
+                    Id = oi.Id,
+                    ProductId = oi.ProductId,
+                    ProductName = oi.Product.ProductName,
+                    ProductCategory = oi.Product.Category,
+                    Quantity = oi.Quantity,
+                    UnitPrice = oi.UnitPrice,
+                    Subtotal = oi.Quantity * oi.UnitPrice
+                })
                 .ToListAsync();
+
+            return Ok(orderItems);
         }
 
+        // PUT: api/orderitems/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutOrderItem(int id, OrderItem orderItem)
+        public async Task<IActionResult> PutOrderItem(int id, OrderItemCreateDto orderItemDto)
         {
-            if (id != orderItem.Id)
+            var orderItem = await _context.OrderItems.FindAsync(id);
+            if (orderItem == null)
             {
-                return BadRequest();
+                return NotFound();
             }
+
+            orderItem.ProductId = orderItemDto.ProductId;
+            orderItem.Quantity = orderItemDto.Quantity;
+            orderItem.UnitPrice = orderItemDto.UnitPrice;
 
             _context.Entry(orderItem).State = EntityState.Modified;
 
@@ -79,15 +123,7 @@ namespace CheburechnayaAPI.Controllers
             return NoContent();
         }
 
-        [HttpPost]
-        public async Task<ActionResult<OrderItem>> PostOrderItem(OrderItem orderItem)
-        {
-            _context.OrderItems.Add(orderItem);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetOrderItem", new { id = orderItem.Id }, orderItem);
-        }
-
+        // DELETE: api/orderitems/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteOrderItem(int id)
         {

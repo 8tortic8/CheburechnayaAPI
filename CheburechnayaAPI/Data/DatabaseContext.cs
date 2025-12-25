@@ -8,27 +8,42 @@ namespace CheburechnayaAPI.Data
         public DatabaseContext(DbContextOptions<DatabaseContext> options)
             : base(options) { }
 
-        public DbSet<Position> Positions { get; set; }
-        public DbSet<Employee> Employees { get; set; }
-        public DbSet<Product> Products { get; set; }
-        public DbSet<Supplier> Suppliers { get; set; }
-        public DbSet<Delivery> Deliveries { get; set; }
-        public DbSet<DeliveryItem> DeliveryItems { get; set; }
-        public DbSet<Order> Orders { get; set; }
-        public DbSet<OrderItem> OrderItems { get; set; }
+        public DbSet<Position> Positions { get; set; } = null!;
+        public DbSet<Employee> Employees { get; set; } = null!;
+        public DbSet<Product> Products { get; set; } = null!;
+        public DbSet<Supplier> Suppliers { get; set; } = null!;
+        public DbSet<Order> Orders { get; set; } = null!;
+        public DbSet<OrderItem> OrderItems { get; set; } = null!;
+        public DbSet<Delivery> Deliveries { get; set; } = null!;
+        public DbSet<DeliveryItem> DeliveryItems { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-           // modelBuilder.Entity<Employee>()
-                //.HasOne(e => e.Position)
-                //.WithMany(p => p.Employees)
-                //.HasForeignKey(e => e.PositionId);
+            modelBuilder.Entity<Employee>()
+                .HasOne(e => e.Position)
+                .WithMany(p => p.Employees)
+                .HasForeignKey(e => e.PositionId);
+
+            modelBuilder.Entity<Order>()
+                .HasOne(o => o.Employee)
+                .WithMany(e => e.Orders)
+                .HasForeignKey(o => o.EmployeeId);
+
+            modelBuilder.Entity<OrderItem>()
+                .HasOne(oi => oi.Order)
+                .WithMany(o => o.OrderItems)
+                .HasForeignKey(oi => oi.OrderId);
+
+            modelBuilder.Entity<OrderItem>()
+                .HasOne(oi => oi.Product)
+                .WithMany(p => p.OrderItems)
+                .HasForeignKey(oi => oi.ProductId);
 
             modelBuilder.Entity<Delivery>()
                 .HasOne(d => d.Supplier)
-                .WithMany(e => e.Deliveries)
+                .WithMany(s => s.Deliveries)
                 .HasForeignKey(d => d.SupplierId);
 
             modelBuilder.Entity<Delivery>()
@@ -47,35 +62,20 @@ namespace CheburechnayaAPI.Data
                 .HasForeignKey(di => di.ProductId);
 
             modelBuilder.Entity<Order>()
-                .HasOne(o => o.Employee)
-                .WithMany(e => e.Orders)
-                .HasForeignKey(o => o.EmployeeId);
-
-            modelBuilder.Entity<OrderItem>()
-                .HasOne(oi => oi.Order)
-                .WithMany(o => o.OrderItems)
-                .HasForeignKey(oi => oi.OrderId);
-
-            modelBuilder.Entity<OrderItem>()
-                .HasOne(oi => oi.Product)
-                .WithMany(p => p.OrderItems)
-                .HasForeignKey(oi => oi.ProductId);
+                .Property(o => o.OrderDate)
+                .HasDefaultValueSql("GETDATE()");
 
             modelBuilder.Entity<Delivery>()
                 .Property(d => d.DeliveryDate)
                 .HasDefaultValueSql("GETDATE()");
 
-            modelBuilder.Entity<Delivery>()
-                .Property(d => d.Status)
-                .HasDefaultValue("Доставлено");
+            modelBuilder.Entity<OrderItem>()
+                .Property(oi => oi.Subtotal)
+                .HasComputedColumnSql("Quantity * UnitPrice");
 
-            modelBuilder.Entity<Order>()
-                .Property(o => o.OrderDate)
-                .HasDefaultValueSql("GETDATE()");
-
-            modelBuilder.Entity<Order>()
-                .Property(o => o.Status)
-                .HasDefaultValue("Принят");
+            modelBuilder.Entity<DeliveryItem>()
+                .Property(di => di.Subtotal)
+                .HasComputedColumnSql("Quantity * UnitPrice");
         }
     }
 }

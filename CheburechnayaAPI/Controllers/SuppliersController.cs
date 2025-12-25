@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using CheburechnayaAPI.Data;
 using CheburechnayaAPI.Models;
+using CheburechnayaAPI.Models.DTOs;
 
 namespace CheburechnayaAPI.Controllers
 {
@@ -16,16 +17,42 @@ namespace CheburechnayaAPI.Controllers
             _context = context;
         }
 
+        // GET: api/suppliers
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Supplier>>> GetSuppliers()
+        public async Task<ActionResult<IEnumerable<SupplierDto>>> GetSuppliers()
         {
-            return await _context.Suppliers.ToListAsync();
+            var suppliers = await _context.Suppliers
+                .Select(s => new SupplierDto
+                {
+                    Id = s.Id,
+                    CompanyName = s.CompanyName,
+                    ContactPerson = s.ContactPerson,
+                    Phone = s.Phone,
+                    TotalDeliveries = s.Deliveries.Count,
+                    TotalDeliveredAmount = s.Deliveries.Sum(d => d.TotalAmount)
+                })
+                .OrderBy(s => s.CompanyName)
+                .ToListAsync();
+
+            return Ok(suppliers);
         }
 
+        // GET: api/suppliers/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Supplier>> GetSupplier(int id)
+        public async Task<ActionResult<SupplierDto>> GetSupplier(int id)
         {
-            var supplier = await _context.Suppliers.FindAsync(id);
+            var supplier = await _context.Suppliers
+                .Where(s => s.Id == id)
+                .Select(s => new SupplierDto
+                {
+                    Id = s.Id,
+                    CompanyName = s.CompanyName,
+                    ContactPerson = s.ContactPerson,
+                    Phone = s.Phone,
+                    TotalDeliveries = s.Deliveries.Count,
+                    TotalDeliveredAmount = s.Deliveries.Sum(d => d.TotalAmount)
+                })
+                .FirstOrDefaultAsync();
 
             if (supplier == null)
             {
@@ -35,13 +62,36 @@ namespace CheburechnayaAPI.Controllers
             return supplier;
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutSupplier(int id, Supplier supplier)
+        // POST: api/suppliers
+        [HttpPost]
+        public async Task<ActionResult<Supplier>> PostSupplier(SupplierCreateDto supplierDto)
         {
-            if (id != supplier.Id)
+            var supplier = new Supplier
             {
-                return BadRequest();
+                CompanyName = supplierDto.CompanyName,
+                ContactPerson = supplierDto.ContactPerson,
+                Phone = supplierDto.Phone
+            };
+
+            _context.Suppliers.Add(supplier);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction("GetSupplier", new { id = supplier.Id }, supplier);
+        }
+
+        // PUT: api/suppliers/5
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutSupplier(int id, SupplierCreateDto supplierDto)
+        {
+            var supplier = await _context.Suppliers.FindAsync(id);
+            if (supplier == null)
+            {
+                return NotFound();
             }
+
+            supplier.CompanyName = supplierDto.CompanyName;
+            supplier.ContactPerson = supplierDto.ContactPerson;
+            supplier.Phone = supplierDto.Phone;
 
             _context.Entry(supplier).State = EntityState.Modified;
 
@@ -64,15 +114,7 @@ namespace CheburechnayaAPI.Controllers
             return NoContent();
         }
 
-        [HttpPost]
-        public async Task<ActionResult<Supplier>> PostSupplier(Supplier supplier)
-        {
-            _context.Suppliers.Add(supplier);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetSupplier", new { id = supplier.Id }, supplier);
-        }
-
+        // DELETE: api/suppliers/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteSupplier(int id)
         {
@@ -80,6 +122,13 @@ namespace CheburechnayaAPI.Controllers
             if (supplier == null)
             {
                 return NotFound();
+            }
+
+            // Проверяем, нет ли поставок от этого поставщика
+            var hasDeliveries = await _context.Deliveries.AnyAsync(d => d.SupplierId == id);
+            if (hasDeliveries)
+            {
+                return BadRequest(new { message = "Нельзя удалить поставщика, у которого есть поставки" });
             }
 
             _context.Suppliers.Remove(supplier);
